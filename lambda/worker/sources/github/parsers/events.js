@@ -334,9 +334,11 @@ module.exports = function(data, db) {
 							}
 						}
 
+						let urlSplit = commit.url.split('/');
+
 						newFile = {
 							identifier: this.connection._id.toString('hex') + ':::push:::github:::' + commit.sha,
-							url: commit.url,
+							url: 'https://github.com/' + urlSplit[4] + '/' + urlSplit[5] + '/commit/' + urlSplit[7],
 							remote_id: commit.id,
 							connection_id: this.connection._id,
 							provider_id: this.connection.provider_id,
