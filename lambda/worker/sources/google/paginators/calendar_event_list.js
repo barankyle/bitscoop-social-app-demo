@@ -43,9 +43,34 @@ function call(connection, parameters, headers, results, db) {
 			if (!(/^2/.test(response.statusCode))) {
 				console.log(response);
 
-				let body = JSON.parse(response.body);
+				let body;
 
-				return Promise.reject(new Error('Error calling ' + self.name + ': ' + body.message));
+				try {
+					body = response.body != null ? JSON.parse(response.body) : null;
+				} catch(err) {
+					console.log('Error parsing response body');
+					console.log(err);
+
+					body = {};
+				}
+
+				if (body && body.message === 'Gone' && body.code === 410) {
+					connection.endpoint_data.calendar_event_list[encodedCalendarId].sync_token = null;
+
+					return db.db('live').collection('connections').updateOne({
+						_id: connection._id
+					}, {
+						$unset: {
+							['endpoint_data.calendar_event_list.' + encodedCalendarId + '.sync_token']: ''
+						}
+					})
+						.then(function() {
+							return Promise.reject('SYNC TOKEN OUT OF DATE');
+						});
+				}
+				else {
+					return Promise.reject(new Error('Error calling ' + self.name + ': ' + response.statusCode === 504 ? 'Bad Gateway' : body != null ? body.message : 'Dunno, check response'));
+				}
 			}
 
 			if (results == null) {
@@ -90,7 +115,14 @@ function call(connection, parameters, headers, results, db) {
 			console.log('Error calling Google Calendar Event List:');
 			console.log(err);
 
-			return Promise.reject(err);
+			if (err === 'SYNC TOKEN OUT OF DATE') {
+				return self.subPaginate(connection, {
+					calendar_id: parameters.calendar_id
+				}, {}, results, db);
+			}
+			else {
+				return Promise.reject(err);
+			}
 		});
 }
 

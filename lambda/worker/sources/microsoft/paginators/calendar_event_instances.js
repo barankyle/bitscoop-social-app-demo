@@ -43,9 +43,18 @@ function call(connection, parameters, headers, results, db) {
 			if (!(/^2/.test(response.statusCode)) || (pageData.code)) {
 				console.log(response);
 
-				let body = JSON.parse(response.body);
+				let body;
 
-				return Promise.reject(new Error('Error calling ' + self.name + ': ' + body.message));
+				try {
+					body = response.body != null ? JSON.parse(response.body) : null;
+				} catch(err) {
+					console.log('Error parsing response body');
+					console.log(err);
+
+                    body = {};
+				}
+
+				return Promise.reject(new Error('Error calling ' + self.name + ': ' + response.statusCode === 504 ? 'Bad Gateway' : body != null ? body.message : 'Dunno, check response'));
 			}
 
 			if (results == null) {

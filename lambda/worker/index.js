@@ -140,7 +140,7 @@ exports.handler = function(event, context, callback) {
 							let promise = Promise.resolve();
 
 							//Google has a rate limit of about 50 email calls per second for each user.
-							//Since we have populate each message individually, that can quickly surpass this limit and lock out that user for 24 hours.
+							//Since we have to populate each message individually, that can quickly surpass this limit and lock out that user for 24 hours.
 							//The solution is to paginate with 1.2-second pauses between each page, getting 40 messages at a time.
 							//Since Lambda has a hard cap of 5 minutes, the first run through a user's mailbox could take too long.
 							//The fix for that problem, which is here, is to save the nextPageToken on endpoint_data as page_token instead of the new date query
@@ -173,6 +173,7 @@ exports.handler = function(event, context, callback) {
 								}, {
 									$set: {
 										last_run: lastRun,
+										last_successful_run: lastRun,
 										status: 'ready'
 									}
 								});
@@ -191,12 +192,9 @@ exports.handler = function(event, context, callback) {
 							};
 
 							let $set = {
-								status: 'failed'
+								status: 'failed',
+								last_run: new Date()
 							};
-
-							if (connection.last_run == null) {
-								$set.last_run = new Date();
-							}
 
 							return Promise.all([
 								new Promise(function(resolve, reject) {

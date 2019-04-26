@@ -47,9 +47,34 @@ function call(connection, parameters, headers, results, db) {
 			if (!(/^2/.test(response.statusCode))) {
 				console.log(response);
 
-				let body = JSON.parse(response.body);
+				let body;
 
-				return Promise.reject(new Error('Error calling ' + self.name + ': ' + body.message));
+				try {
+					body = response.body != null ? JSON.parse(response.body) : null;
+				} catch(err) {
+					console.log('Error parsing response body');
+					console.log(err);
+
+                    body = {};
+				}
+
+				if (body.message === 'Gone' && body.code === 410) {
+					connection.endpoint_data.drive_changestoken = null;
+
+					return db.db('live').collection('connections').updateOne({
+						_id: connection._id
+					}, {
+						$unset: {
+							'endpoint_data.drive_changes.token': ''
+						}
+					})
+						.then(function() {
+							return Promise.reject('SYNC TOKEN OUT OF DATE');
+						});
+				}
+				else {
+					return Promise.reject(new Error('Error calling ' + self.name + ': ' + response.statusCode === 504 ? 'Bad Gateway' : body != null ? body.message : 'Dunno, check response'));
+				}
 			}
 
 			if (results == null) {
@@ -104,7 +129,12 @@ function call(connection, parameters, headers, results, db) {
 			console.log('Error calling Microsoft Drive Changes:');
 			console.log(err);
 
-			return Promise.reject(err);
+			if (err === 'SYNC TOKEN OUT OF DATE') {
+				return self.paginate(connection, {}, {}, results, db);
+			}
+			else {
+				return Promise.reject(err);
+			}
 		});
 }
 

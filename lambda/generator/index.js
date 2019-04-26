@@ -80,17 +80,17 @@ exports.handler = function(event, context, callback) {
 							{
 								$or: [
 									{
-										last_run: {
+										last_successful_run: {
 											$lt: new Date(new Date() - 86400000)
 										}
 									},
 									{
-										last_run: {
+										last_successful_run: {
 											$exists: false
 										}
 									},
 									{
-										last_run: null
+										last_successful_run: null
 									}
 								]
 							}
@@ -110,7 +110,8 @@ exports.handler = function(event, context, callback) {
 								return db.db('live').collection('connections').find({
 									status: 'failed',
 									last_run: {
-										$gt: new Date(new Date() - 172800000)
+										$gt: new Date(new Date() - 172800000),
+										$lt: new Date(new Date() - 3600000)
 									}
 								}, {
 									_id: true

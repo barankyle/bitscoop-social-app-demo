@@ -34,6 +34,11 @@ module.exports = function(data, db) {
 			let localContent = [];
 			let localContentIds = {};
 
+			if (item.start == null) {
+				console.log('Bad Google Calendar item');
+				console.log(item);
+			}
+
 			let date = item.start.dateTime ? item.start.dateTime : item.start.date;
 
 			let invite = {

@@ -33,7 +33,8 @@ Promise.all([
 
 		return db.db('live').collection('connections').update({}, {
 			$unset: {
-				last_run: true
+				last_run: true,
+				last_successful_run: true
 			}
 		}, {
 			multi: true
