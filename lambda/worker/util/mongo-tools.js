@@ -241,9 +241,89 @@ function mongoInsert(objects, db) {
 		});
 }
 
+async function mongoPeopleAssemble(objects, db) {
+	let contactsUpsert = bulkUpsert('contacts', objects.contacts, db);
+	let peoplePromises = [];
+
+	let hydratedContacts = await contactsUpsert;
+
+	for (let i = 0; i < hydratedContacts.length; i++) {
+		let index = _.findIndex(objects.contacts, function(contact) {
+			return contact.identifier === hydratedContacts[i].identifier;
+		});
+
+		objects.contacts[index]._id = hydratedContacts[i]._id;
+	}
+
+	peoplePromises = _.map(objects.people, function(person) {
+		let ids = _.map(person.contacts, function(contact) {
+			return contact._id;
+		});
+
+		return Promise.resolve()
+			.then(function() {
+				return db.db('live').collection('people').findOne({
+					contact_ids: {
+						$in: ids
+					}
+				})
+					.then(function(personResult) {
+						if (personResult == null) {
+							let _id = gid(uuid());
+
+							let insert = {
+								_id: _id,
+								tagMasks: {
+									added: [],
+									removed: [],
+									source: []
+								},
+								contact_ids: ids,
+								first_name: person.first_name,
+								middle_name: person.middle_name,
+								last_name: person.last_name,
+								self: false,
+								created: moment().utc().toDate(),
+								updated: moment().utc().toDate(),
+								user_id: person.contacts[0].user_id
+							};
+
+							return db.db('live').collection('people').insertOne(insert)
+						}
+						else {
+							let contactIds = personResult.contact_ids;
+
+							let stringIds = _.map(contactIds, function(id) {
+								return id.toString('hex');
+							});
+
+							_.each(ids, function(id) {
+								if (stringIds.indexOf(id.toString('hex')) < 0) {
+									contactIds.push(id);
+								}
+							});
+
+							return db.db('live').collection('people').update({
+								_id: personResult._id,
+								user_id: person.contacts[0].user_id
+							}, {
+								$set: {
+									contact_ids: contactIds,
+									updated: moment().utc().toDate()
+								}
+							})
+						}
+					});
+		});
+	});
+
+	return Promise.all(peoplePromises);
+}
+
 
 module.exports = {
 	bulkUpsert: bulkUpsert,
 	MongoEvent: MongoEvent,
-	mongoInsert: mongoInsert
+	mongoInsert: mongoInsert,
+	mongoPeopleAssemble: mongoPeopleAssemble
 };
