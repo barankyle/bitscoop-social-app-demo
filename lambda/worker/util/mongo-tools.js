@@ -292,13 +292,18 @@ async function mongoPeopleAssemble(objects, db) {
 						}
 						else {
 							let contactIds = personResult.contact_ids;
+							let removedContactIds = personResult.removed_contact_ids;
 
 							let stringIds = _.map(contactIds, function(id) {
 								return id.toString('hex');
 							});
 
+							let stringRemovedIds = _.map(removedContactIds, function(id) {
+								return id.toString('hex');
+							});
+
 							_.each(ids, function(id) {
-								if (stringIds.indexOf(id.toString('hex')) < 0) {
+								if (stringIds.indexOf(id.toString('hex')) < 0 && stringRemovedIds.indexOf(id.toString('hex')) < 0) {
 									contactIds.push(id);
 								}
 							});

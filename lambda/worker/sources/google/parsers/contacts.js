@@ -69,7 +69,7 @@ module.exports = function(data, db) {
 						name: item.person.names[0].displayName,
 						handle: number.canonicalForm,
 						updated: moment().utc().toDate(),
-						'tagMasks.source': 'phone-type-' + number.type,
+						'tagMasks.source': ['phone-type-' + number.type],
 					};
 
 					if (item.person.coverPhotos && item.person.coverPhotos.length > 0) {
