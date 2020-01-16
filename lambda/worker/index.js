@@ -109,6 +109,44 @@ exports.handler = function(event, context, callback) {
 						});
 				})
 				.then(function(connection) {
+					return new Promise(function(resolve) {
+						if (connection.provider.name === 'Instagram') {
+							bitscoop.getConnection(connection.remote_connection_id.toString('hex'))
+								.then(function(remoteConnection) {
+									let api = bitscoop.api(connection.provider.remote_map_id.toString('hex'));
+
+									return api.endpoint('LongLivedTokenExchange')({
+										headers: {
+											'X-Connection-ID': connection.remote_connection_id.toString('hex')
+										}
+									})
+										.then(function(result) {
+											if (result.access_token || result[0].access_token) {
+												remoteConnection.auth.data.access_token = result.access_token || result[0].access_token;
+											}
+
+											delete remoteConnection.metadata;
+											delete remoteConnection.map_id;
+
+											return remoteConnection.save();
+										})
+										.then(function(remoteConnection) {
+											resolve(connection);
+										})
+										.catch(function(err) {
+											console.log('Failed to exchange/refresh Instagram long-lived token');
+											console.log(err);
+
+											resolve();
+										})
+								})
+						}
+						else {
+							resolve(connection);
+						}
+					});
+				})
+				.then(function(connection) {
 					let api = bitscoop.api(connection.provider.remote_map_id.toString('hex'));
 
 					let promises = _.map(connection.permissions, function(permission, name) {

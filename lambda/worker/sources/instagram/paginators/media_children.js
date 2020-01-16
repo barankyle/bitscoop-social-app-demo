@@ -2,13 +2,10 @@
 
 const _ = require('lodash');
 
-const mediaChildren = require('./media_children');
-
 const count = 1;
 
 const fields = [
 	'id',
-	'caption',
 	'timestamp',
 	'media_type',
 	'media_url',
@@ -28,17 +25,13 @@ function call(connection, parameters, headers, results, db) {
 	outgoingParameters.fields = fields.join(',');
 	outgoingParameters.limit = count;
 
-	if (_.get(connection, 'endpoint_data.posts.after') != null && outgoingParameters.after == null) {
-		outgoingParameters.after = connection.endpoint_data.posts.after;
-	}
-
 	return Promise.all([
-		this.api.endpoint(this.mapping)({
+		this.api.endpoint('MediaChildren')({
 			headers: outgoingHeaders,
 			parameters: outgoingParameters
 		}),
 
-		this.api.endpoint(this.mapping + 'Page')({
+		this.api.endpoint('MediaChildrenPage')({
 			headers: outgoingHeaders,
 			parameters: outgoingParameters
 		})
@@ -71,66 +64,22 @@ function call(connection, parameters, headers, results, db) {
 			next = pageData.next;
 			nextAfter = pageData && pageData.cursors && pageData.cursors.after ? pageData.cursors.after : null;
 
-			if (!self.subPaginate) {
-				self.subPaginate = mediaChildren;
-			}
+			results = results.concat(data);
 
-			let pagePromises = _.map(data, async function(item) {
-				if (item.media_type === 'CAROUSEL_ALBUM') {
-					let parameters = {
-						id: item.id
-					};
-
-					return self.subPaginate(connection, parameters, {}, [], db)
-						.then(function(children) {
-							item.children = children;
-
-							return Promise.resolve(item);
-						})
-				}
-				else {
-					return Promise.resolve(item);
-				}
-			});
-
-			return Promise.all(pagePromises);
+			return Promise.resolve();
 		})
-		.then(function(massResults) {
-			if (results == null) {
-				results = [];
-			}
-
-			_.each(massResults, function(individualResult) {
-				results = results.concat(individualResult);
-			});
-
-			if (next != null) {
-				return self.paginate(connection, {
+		.then(function() {
+			if (next != null && nextAfter != null) {
+				return self.subPaginate(connection, {
 					after: nextAfter
-				}, {}, results, db);
+				}, {}, results);
 			}
 			else {
-				let promise = Promise.resolve();
-
-				if (results.length > 0 && nextAfter != null) {
-					promise = promise.then(function() {
-						return db.db('live').collection('connections').updateOne({
-							_id: connection._id
-						}, {
-							$set: {
-								'endpoint_data.posts.after': nextAfter
-							}
-						});
-					});
-				}
-
-				return promise.then(function() {
-					return Promise.resolve(results);
-				});
+				return Promise.resolve(results);
 			}
 		})
 		.catch(function(err) {
-			console.log('Error calling Instagram Media:');
+			console.log('Error calling Instagram Media Children:');
 			console.log(err);
 
 			return Promise.reject(err);

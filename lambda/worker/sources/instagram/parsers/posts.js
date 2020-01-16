@@ -6,8 +6,11 @@ const moment = require('moment');
 const mongoTools = require('../../../util/mongo-tools');
 
 
+let tagRegex = /#[^#\s]+/g;
+
+
 module.exports = function(data, db) {
-	var contacts, content, events, locations, objectCache, tags;
+	var content, events, objectCache, tags, self = this;
 
 	objectCache = {
 		contacts: {},
@@ -15,9 +18,7 @@ module.exports = function(data, db) {
 		tags: {}
 	};
 
-	contacts = [];
 	content = [];
-	locations = [];
 	tags = [];
 	events = new Array(data.length);
 
@@ -27,63 +28,14 @@ module.exports = function(data, db) {
 
 			let newTags = [];
 
-			for (let j = 0; j < item.tags.length; j++) {
-				let tag = item.tags[j];
-
-				let newTag = {
-					tag: tag,
-					user_id: this.connection.user_id
-				};
-
-				if (!_.has(objectCache.tags, newTag.tag)) {
-					objectCache.tags[newTag.tag] = newTag;
-
-					tags.push(objectCache.tags[newTag.tag]);
-				}
-
-				if (newTags.indexOf(newTag.tag) === -1) {
-					newTags.push(newTag.tag);
-				}
-			}
-
-			let newMedia = {
-				identifier: this.connection._id.toString('hex') + ':::instagram:::' + item.id,
-				connection_id: this.connection._id,
-				provider_id: this.connection.provider_id,
-				provider_name: 'instagram',
-				user_id: this.connection.user_id,
-				url: item.link,
-				remote_id: item.id,
-				'tagMasks.source': newTags
-			};
-
-			if (item.caption) {
-				newMedia.title = item.caption.text;
-			}
-
-			if (item.type === 'image') {
-				newMedia.type = 'image';
-				newMedia.embed_format = 'jpeg';
-				newMedia.embed_content = item.images.standard_resolution.url;
-				newMedia.embed_thumbnail = item.images.thumbnail.url;
-			}
-			else if (item.type === 'video') {
-				newMedia.type = 'video';
-				newMedia.embed_format = 'mp4';
-				newMedia.embed_thumbnail = item.images.thumbnail.url;
-				newMedia.embed_content = item.videos.standard_resolution.url;
-			}
-
-			content.push(newMedia);
-
-			let datetime = moment(parseInt(item.created_time) * 1000).utc().toDate();
+			let datetime = moment(item.timestamp).utc().toDate();
 
 			let newEvent = {
 				type: 'created',
 				context: 'Shared',
 				identifier: this.connection._id.toString('hex') + ':::created:::instagram:::' + item.id,
 				datetime: datetime,
-				content: [newMedia],
+				content: [],
 				contacts: [],
 				connection_id: this.connection._id,
 				provider_id: this.connection.provider_id,
@@ -91,57 +43,106 @@ module.exports = function(data, db) {
 				user_id: this.connection.user_id
 			};
 
-			//if (item.comments.count > 0) {
-			//	for (let j = 0; j < item.comments.count; j++) {
-			//		let comment = item.comments.data[j];
-			//
-			//		if (comment != null) {
-			//			let newContact = {
-			//				identifier: this.connection._id.toString('hex') + ':::instagram:::' + comment.from.id,
-			// connection_id: this.connection._id,
-			// 	provider_id: this.connection.provider_id,
-			// 	provider_name: 'instagram',
-			//				user_id: this.connection.user_id,
-			//				avatar_url: comment.from.profile_picture,
-			//				remote_id: comment.from.id,
-			//				handle: comment.from.username
-			//			};
-			//
-			//			if (!_.has(objectCache.contacts, newContact.identifier)) {
-			//				objectCache.contacts[newContact.identifier] = newContact;
-			//				contacts.push(newContact);
-			//			}
-			//
-			//			newEvent.contacts.push(objectCache.contacts[newContact.identifier]);
-			//		}
-			//	}
-			//}
+			let newMedia = {
+				identifier: this.connection._id.toString('hex') + ':::instagram:::' + item.id,
+				connection_id: this.connection._id,
+				provider_id: this.connection.provider_id,
+				provider_name: 'instagram',
+				user_id: this.connection.user_id,
+				url: item.permalink,
+				remote_id: item.id,
+				'tagMasks.source': newTags
+			};
 
-			if (item.location && item.location.longitude && item.location.latitude) {
-				let newLocation = {
-					identifier: this.connection._id.toString('hex') + ':::instagram:::' + datetime,
-					datetime: datetime,
-					estimated: false,
-					geo_format: 'lat_lng',
-					geolocation: [item.location.longitude, item.location.latitude],
-					connection_id: this.connection._id,
-					provider_id: this.connection.provider_id,
-					provider_name: 'instagram',
-					user_id: this.connection.user_id
-				};
+			if (item.caption) {
+				newMedia.title = item.caption;
 
-				locations.push(newLocation);
-				newEvent.location = newLocation;
+				let captionTags = item.caption .match(tagRegex);
+
+				if (captionTags != null) {
+					for (let j = 0; j < captionTags.length; j++) {
+						let tag = captionTags[j].slice(1);
+
+						let newTag = {
+							tag: tag,
+							user_id: self.connection.user_id
+						};
+
+						if (!_.has(objectCache.tags, newTag.tag)) {
+							objectCache.tags[newTag.tag] = newTag;
+
+							tags.push(objectCache.tags[newTag.tag]);
+						}
+
+						if (newTags.indexOf(newTag.tag) === -1) {
+							newTags.push(newTag.tag);
+						}
+					}
+				}
 			}
+
+			newEvent.content.push(newMedia);
+
+			if (item.media_type === 'IMAGE') {
+				newMedia.type = 'image';
+				newMedia.embed_format = 'jpeg';
+				newMedia.embed_content = item.media_url;
+			}
+			else if (item.media_type === 'VIDEO') {
+				newMedia.type = 'video';
+				newMedia.embed_thumbnail = item.thumbnail_url;
+
+				if (item.media_url != null) {
+					newMedia.embed_format = 'mp4';
+					newMedia.embed_content = item.media_url;
+				}
+			}
+			else if (item.media_type === 'CAROUSEL_ALBUM') {
+				newMedia.type = 'album';
+				newMedia.embed_format = 'jpg';
+				newMedia.embed_content = item.media_url != null ? item.media_url : null;
+				newMedia.embed_thumbnail = item.thumbnail_url;
+
+				_.each(item.children, function(child) {
+					let childMedia = {
+						identifier: self.connection._id.toString('hex') + ':::instagram:::' + child.id,
+						connection_id: self.connection._id,
+						provider_id: self.connection.provider_id,
+						provider_name: 'instagram',
+						user_id: self.connection.user_id,
+						url: child.permalink,
+						remote_id: child.id
+					};
+
+					if (child.media_type === 'IMAGE') {
+						childMedia.type = 'image';
+						childMedia.embed_format = 'jpeg';
+						childMedia.embed_content = child.media_url;
+					}
+					else if (child.media_type === 'VIDEO') {
+						childMedia.type = 'video';
+						childMedia.embed_thumbnail = child.thumbnail_url;
+
+						if (child.media_url != null) {
+							childMedia.embed_format = 'mp4';
+							childMedia.embed_content = child.media_url;
+						}
+					}
+
+					content.push(childMedia);
+
+					newEvent.content.push(childMedia);
+				});
+			}
+
+			content.push(newMedia);
 
 			events[i] = newEvent;
 		}
 
 		return mongoTools.mongoInsert({
-			contacts: contacts,
 			content: content,
 			events: events,
-			locations: locations,
 			tags: tags
 		}, db);
 	}
