@@ -6,7 +6,7 @@ const moment = require('moment');
 const mongoTools = require('../../../util/mongo-tools');
 
 
-let tagRegex = /#[^#\s]+/g;
+let tagRegex = /#[\w-]{1,50}(?<=[A-z]+)/g;
 
 
 module.exports = function(data, db) {
