@@ -278,15 +278,22 @@ async function mongoPeopleAssemble(objects, db) {
 									removed: [],
 									source: []
 								},
+								avatar_url: person.avatar_url,
 								contact_ids: ids,
+								external_avatar_url: person.external_avatar_url,
 								first_name: person.first_name,
 								middle_name: person.middle_name,
 								last_name: person.last_name,
+								notes: person.notes,
 								self: false,
 								created: moment().utc().toDate(),
 								updated: moment().utc().toDate(),
 								user_id: person.contacts[0].user_id
 							};
+
+							if (person.address) {
+								insert.address = person.address;
+							}
 
 							return db.db('live').collection('people').insertOne(insert)
 						}

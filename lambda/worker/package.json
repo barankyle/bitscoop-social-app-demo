@@ -2,6 +2,7 @@
   "dependencies": {
     "aws-sdk": "^2.68.0",
     "bitscoop-sdk": "^0.2.0",
+    "country-region-data": "^1.5.1",
     "email-addresses": "^2.0.2",
     "lodash": "^4.17.4",
     "moment": "^2.18.1",
