@@ -73,7 +73,7 @@ function call(connection, parameters, headers, results, db) {
 			}
 
 			next = pageData ? pageData.next : null;
-			after = pageData ? pageData.cursors.after : null;
+			after = pageData && pageData.cursors ? pageData.cursors.after : null;
 
 			results = results.concat(data);
 
