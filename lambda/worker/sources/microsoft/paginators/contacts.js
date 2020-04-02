@@ -1,21 +1,11 @@
 'use strict';
 
+const url = require('url');
+const querystring = require('querystring');
+
 const _ = require('lodash');
 
-
-const fields = [
-	'id',
-	'email',
-	'first_name',
-	'last_name',
-	'link',
-	'location{location}',
-	'middle_name',
-	'name',
-	'picture'
-];
-
-const limit = 20;
+const limit = 1;
 
 
 function call(connection, parameters, headers, results, db) {
@@ -25,15 +15,7 @@ function call(connection, parameters, headers, results, db) {
 	let outgoingParameters = parameters || {};
 
 	outgoingHeaders['X-Connection-Id'] = connection.remote_connection_id.toString('hex');
-	outgoingParameters.limit = outgoingParameters.limit || limit;
-
-	if (_.get(connection, 'endpoint_data.friends.after') != null && outgoingParameters.after == null) {
-		outgoingParameters.after = connection.endpoint_data.friends.after;
-	}
-
-	let fieldsCopy = _.clone(fields);
-
-	outgoingParameters.fields = fieldsCopy.join();
+	outgoingParameters.top = outgoingParameters.top || limit;
 
 	return Promise.all([
 		this.api.endpoint(this.mapping)({
@@ -71,8 +53,7 @@ function call(connection, parameters, headers, results, db) {
 				results = [];
 			}
 
-			next = pageData ? pageData.next : null;
-			after = pageData && pageData.cursors ? pageData.cursors.after : null;
+			next = pageData ? pageData.nextLink : null;
 
 			results = results.concat(data);
 
@@ -80,34 +61,22 @@ function call(connection, parameters, headers, results, db) {
 		})
 		.then(function() {
 			if (next != null) {
+				let parsed = url.parse(next);
+				let params = querystring.parse(parsed.query);
+
 				let forwardParams = {
-					after: after,
+					top: params.$top,
+					skip: params.$skip
 				};
 
 				return self.paginate(connection, forwardParams, {}, results, db);
 			}
 			else {
-				let promise = Promise.resolve();
-
-				if (results.length > 0) {
-					promise = promise.then(function() {
-						return db.db('live').collection('connections').updateOne({
-							_id: connection._id
-						}, {
-							$set: {
-								'endpoint_data.friends.after': after
-							}
-						});
-					});
-				}
-
-				return promise.then(function() {
-					return Promise.resolve(results);
-				});
+				return Promise.resolve(results);
 			}
 		})
 		.catch(function(err) {
-			console.log('Error calling Facebook Friends:');
+			console.log('Error calling Microsoft Contacts:');
 			console.log(err);
 
 			return Promise.reject(err);
